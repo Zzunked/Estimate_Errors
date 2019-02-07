@@ -1,12 +1,13 @@
 import sys
 from PyQt5 import QtWidgets
-from estimate_errors.indirerror import IndirErrorGUI
+from estimate_errors.main_gui import MainGUI
 
-def err_main_exec():
+def main_exec():
     app = QtWidgets.QApplication(sys.argv)
-    win = IndirErrorGUI()
+    win = MainGUI()
     win.show()
     app.exec_()
 
+
 if __name__ == '__main__':
-    err_main_exec()
+    main_exec()

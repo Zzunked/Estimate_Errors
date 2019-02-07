@@ -1,135 +1,116 @@
-import sys
 from PyQt5 import QtWidgets
-from estimate_errors.indirerrorGUI import Ui_MainWindow
-import re
-import numpy as np
-import sympy as sy
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-from estimate_errors.direrror import DirErrorGUI
+
+from estimate_errors.direrrorGUI import Ui_MainWindow_DirError
+from estimate_errors.indirerrorGUI import Ui_MainWindow_IndirError
+from estimate_errors.main_functions import *
 
 
-def est_indir_err(inp_func, inp_vals, inp_errors):
-    math_funcs = {'sin': np.sin, 'arcsin': np.arcsin, 'sinh': np.sinh,
-                  'cos': np.cos, 'cosh': np.cosh, 'arccos': np.arccos,
-                  'tan': np.tan, 'arctan': np.arctan, 'tanh': np.tanh,
-                  'log': np.log, 'sqrt': np.sqrt, 'exp': np.exp,
-                  'pi': np.pi}
-
-    input_str = re.sub("[^A-Za-z0-9\,()*/+=\-]", '', inp_func)
-    func, variables = re.sub(' ', '', input_str).split('=')[1], re.sub(' ', '', input_str).split('(')[1].split(')')[0]
-    str_vars = re.sub(',', '', variables)
-
-    input_vals, const_vals, var_vals = {}, {}, {}
-
-    for x in list(inp_vals.keys()):
-        if len(inp_vals[x]) > 1:
-            var_vals[x] = inp_vals[x]
-        else:
-            const_vals[x] = float(eval(inp_vals[x][0], math_funcs))
-
-    val_list = []
-    for x in list(var_vals.keys()):
-        for y in var_vals[x]:
-            d = const_vals.copy()
-            d[x] = eval(y, math_funcs)
-            val_list.append(d)
-    derivatives = [str(sy.diff(func, x)) for x in str_vars]
-    func_values = [eval(func, math_funcs, x) for x in val_list]
-
-    der_vals = []
-    for x in range(len(derivatives)):
-        l = [(eval(derivatives[x], math_funcs, i) * inp_errors[x]) ** 2 for i in val_list]
-        der_vals.append(l)
-    func_errors = [np.sqrt(np.sum(x)) for x in list(zip(*np.array(der_vals)))]
-
-    var_vals_vector = [float(eval(x, math_funcs)) for x in list(var_vals.values())[0]]
-    for x in str_vars:
-        if x == list(var_vals.keys())[0][0]:
-            vals_vector_err = inp_errors[str_vars.index(x)]
-            break
-
-    errors_round, func_values_round = [], []
-    for i in list(zip(func_errors, func_values)):
-        if int(str(i[0]).split('.')[0]) != 0:
-            errors_round.append(np.round(i[0], 0))
-            func_values_round.append(np.round(i[1], 0))
-        else:
-            for x in str(i[0]).split('.')[1]:
-                if int(x) != 0 and int(x) != 1:
-                    errors_round.append(np.round(i[0], str(i[0]).split('.')[1].index(x) + 1))
-                    func_values_round.append(np.round(i[1], str(i[0]).split('.')[1].index(x) + 1))
-                    break
-                elif int(x) == 0:
-                    continue
-                else:
-                    errors_round.append(np.round(i[0], list(str(i[0]).split('.')[1]).index(x) + 2))
-                    func_values_round.append(np.round(i[1], list(str(i[0]).split('.')[1]).index(x) + 2))
-                    break
-
-    error_percent = [np.abs(np.round(x[1] * 100 / x[0])) for x in list(zip(func_values_round, errors_round))]
-
-    return func_values_round, errors_round, error_percent, var_vals_vector, vals_vector_err, func, variables
-
-
-def plot_func_w_errors(func_and_errors, choose_plot, poly_degree=1, graph_title='Graph of Function',
-                       y_label='Function', x_label='x_axis'):
-    math_funcs = {'sin': np.sin, 'arcsin': np.arcsin, 'sinh': np.sinh,
-                  'cos': np.cos, 'cosh': np.cosh, 'arccos': np.arccos,
-                  'tan': np.tan, 'arctan': np.arctan, 'tanh': np.tanh,
-                  'log': np.log, 'sqrt': np.sqrt, 'exp': np.exp,
-                  'pi': np.pi}
-
-    x = np.array(func_and_errors[3])
-    y = np.array(func_and_errors[0])
-    yerr = func_and_errors[1]
-    xerr = func_and_errors[4]
-
-    if func_and_errors[3][-1] > 0:
-        xstep = np.array(func_and_errors[3][-1] / len(x))
-    else:
-        xstep = np.array(np.abs(func_and_errors[3][0]) / len(x))
-
-    dx = xstep*10**-3
-    xdata = np.round(np.arange(func_and_errors[3][0] - xstep, func_and_errors[3][-1] + xstep, dx), decimals=4)
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111)
-
-    if choose_plot == 1:
-        ax1.errorbar(x, y, xerr=xerr, yerr=yerr, fmt='o', label=y_label.split(',')[0], ecolor='red')
-    elif choose_plot == 2:
-        func = eval('lambda ' + func_and_errors[6] + ':' + func_and_errors[5], math_funcs)
-        popt, pcov = curve_fit(func, x, y)
-        ax1.errorbar(x, y, xerr=xerr, yerr=yerr, fmt='o', label=y_label.split(',')[0], ecolor='red')
-        ax1.plot(xdata, func(xdata, *popt), label='Curve fit')
-    else:
-        polyfit_coeff = np.polyfit(x, y, poly_degree)
-        coeff_names = 'abcdefghi'
-        coeff_labels = list(zip(coeff_names, polyfit_coeff))
-        poly_label = f'Polyfit, deg={poly_degree}\n'
-        for i in range(poly_degree + 1):
-            poly_label += str(coeff_labels[i][0]) + ':' + str(coeff_labels[i][1]) + '\n'
-        poly_fit = np.poly1d(polyfit_coeff)
-        ax1.errorbar(x, y, xerr=xerr, yerr=yerr, fmt='o', label=y_label.split(',')[0], ecolor='red')
-        ax1.plot(xdata, poly_fit(xdata), label=poly_label)
-
-
-    plt.rc('grid', linestyle="--", color='black')
-    plt.title(graph_title)
-    plt.ylabel(y_label)
-    plt.xlabel(x_label)
-    plt.legend(loc='best')
-    plt.grid(True)
-
-    plt.show()
-
-
-class IndirErrorGUI(QtWidgets.QMainWindow):
+class DirErrorGUI(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         QtWidgets.QMainWindow.__init__(self)
 
-        self.ui = Ui_MainWindow()
+        self.ui = Ui_MainWindow_DirError()
+        self.ui.setupUi(self)
+
+        self.ui.inputValuesBtn.clicked.connect(self.inputValues)
+        self.ui.appErrorBtn.clicked.connect(self.inputAppError)
+        self.ui.measureErrorBtn.clicked.connect(self.inputMeasureError)
+        self.ui.resultBtn.clicked.connect(self.showDirError)
+        self.ui.listClearBtn.clicked.connect(self.ui.listWidget.clear)
+
+        self.ui.actionSave.triggered.connect(self.saveResult)
+        self.ui.actionOpen.triggered.connect(self.openTxtFile)
+        self.ui.actionHelp.triggered.connect(self.helpinfo)
+
+        self.ui.listWidget.setStyleSheet("QListWidget::item { border-bottom: 1px solid black; }")
+
+
+    def openTxtFile(self):
+        global inp_values, inp_app_error, inp_measure_err
+        try:
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Открыть файл", '', "(*.txt)")
+            file = re.sub(' ', '', open(path).read()).split('\n')
+            inp_values = file[0].split(':')[1]
+            inp_app_error = file[1].split(':')[1]
+            inp_measure_err = file[2].split(':')[1]
+
+            self.ui.listWidget.addItem('Измеренные значения: ' + inp_values)
+            self.ui.listWidget.addItem('Приборная погрешность: ' + inp_app_error)
+            self.ui.listWidget.addItem('Погрешность измерения: ' + inp_measure_err)
+        except:
+            QtWidgets.QMessageBox.about(self,
+                                        'Ошибка',
+                                        'Вы неправильно составили txt файл!\n'
+                                        'Пример правильного txt файла:\n'
+                                        'x: 3.8,3.9,3.7,4,4.1,3.8 \n'
+                                        'apperr: 0.05\n'
+                                        'measerr: 0.1\n')
+
+    def saveResult(self):
+        try:
+            if dir_err_result: pass
+            fname, sel = QtWidgets.QFileDialog.getSaveFileName(self, "Сохранить","",
+                                                               "Text Files (*.txt);;untitled.txt")
+            if fname:
+                with open(fname, 'w') as f:
+                    f.write('average error\n')
+                    f.write(str(dir_err_result[0]) + ' ' + str(dir_err_result[1]) + '\n')
+        except NameError:
+            QtWidgets.QMessageBox.about(self, 'Ошибка', 'Сначала вычислите погрешность!')
+
+    def helpinfo(self):
+        text = open('docs/dir_help_info.txt').read()
+        self.ui.listWidget.addItem(text)
+
+    def inputValues(self):
+        global inp_values
+        inp_values, ok = QtWidgets.QInputDialog.getText(self,
+                                                       'Измеренные значения',
+                                                       'Введите измеренные значения через запятую:')
+        if ok and inp_values != '':
+            text= 'Измеренные значения: ' + inp_values
+            self.ui.listWidget.addItem(text)
+
+    def inputAppError(self):
+        global inp_app_error
+        inp_app_error, ok = QtWidgets.QInputDialog.getText(self,
+                                                           'Приборная погрешность',
+                                                           'Введите приборную погрешность:')
+        if ok and inp_app_error != '':
+            text = 'Приборная погрешность: ' + inp_app_error
+            self.ui.listWidget.addItem(text)
+
+    def inputMeasureError(self):
+        global inp_measure_err
+        inp_measure_err, ok = QtWidgets.QInputDialog.getText(self,
+                                                             'Погрешность измерения',
+                                                             'Введите погрешность измерения:')
+        if ok and inp_measure_err != '':
+            text = 'Погрешность измерения: ' + inp_measure_err
+            self.ui.listWidget.addItem(text)
+
+    def showDirError(self):
+        global dir_err_result
+        try:
+            if inp_values and inp_app_error and inp_measure_err: pass
+            dir_err_result = est_dir_err(inp_values, inp_app_error, inp_measure_err)
+            text = 'Среднее значение: ' \
+                   + str(dir_err_result[0]) + ' Погрешность: ' \
+                   + str(dir_err_result[1]) + ' Процент погрешности: ' \
+                   + str(dir_err_result[2]) + '%'
+
+            self.ui.listWidget.addItem(text)
+            self.ui.listWidget.addItem(' ')
+        except NameError:
+            QtWidgets.QMessageBox.about(self, 'Ошибка', 'Сначала введите значения измеряемой величины, '
+                                                        'приборную погрешность и '
+                                                        'погрешность измерения!')
+
+class MainGUI(QtWidgets.QMainWindow):
+    def __init__(self, parent=None):
+        QtWidgets.QMainWindow.__init__(self)
+
+        self.ui = Ui_MainWindow_IndirError()
         self.ui.setupUi(self)
 
         self.ui.inpFuncBtn.clicked.connect(self.inputFunction)
@@ -187,17 +168,14 @@ class IndirErrorGUI(QtWidgets.QMainWindow):
     def calcFunction(self):
         global indir_err_vals
         try:
-            try:
-                indir_err_vals = est_indir_err(inp_func, inp_vals, inp_errors)
-                for x in range(len(indir_err_vals[0])):
-                    text = ('Значение функции: ' + str(indir_err_vals[0][x]) +
+            indir_err_vals = est_indir_err(inp_func, inp_vals, inp_errors, math_funcs)
+            for x in range(len(indir_err_vals[0])):
+                text = ('Значение функции: ' + str(indir_err_vals[0][x]) +
                             ' Погрешность: ' + str(indir_err_vals[1][x]) +
                             ' Процент погрешности: ' + str(indir_err_vals[2][x]) + '%')
-                    self.ui.listWidget.addItem(text)
-            except NameError:
-                QtWidgets.QMessageBox.about(self, 'Ошибка', 'Сначала введите функцию и значения переменных!')
-        except:
-            QtWidgets.QMessageBox.about(self, 'Ошибка', 'Что-то пошло не так!')
+                self.ui.listWidget.addItem(text)
+        except NameError:
+            QtWidgets.QMessageBox.about(self, 'Ошибка', 'Сначала введите функцию и значения переменных!')
 
     def openTxtFile(self):
         global inp_func, inp_func_vars, str_func_vars, inp_vars, inp_vals, inp_errors
@@ -269,7 +247,7 @@ class IndirErrorGUI(QtWidgets.QMainWindow):
                                                            f'Введите название оси ординат')
                 x_label, ok3 = QtWidgets.QInputDialog.getText(self, 'Ось Ox',
                                                            f'Введите название оси абсцисс')
-            plot_func_w_errors(indir_err_vals, 1, graph_title=graph_title, y_label=y_label, x_label=x_label)
+            plot_func_w_errors(indir_err_vals, 1, math_funcs, graph_title=graph_title, y_label=y_label, x_label=x_label)
         except NameError:
             QtWidgets.QMessageBox.about(self, 'Ошибка', 'Сначала рассчитайте значения функции!')
 
@@ -293,7 +271,7 @@ class IndirErrorGUI(QtWidgets.QMainWindow):
                                                                f'Введите название оси ординат')
                     x_label, ok3 = QtWidgets.QInputDialog.getText(self, 'Ось Ox',
                                                                f'Введите название оси абсцисс')
-                plot_func_w_errors(indir_err_vals, 2, graph_title=graph_title, y_label=y_label, x_label=x_label)
+                plot_func_w_errors(indir_err_vals, 2, math_funcs, graph_title=graph_title, y_label=y_label, x_label=x_label)
             except NameError:
                 QtWidgets.QMessageBox.about(self, 'Ошибка', 'Сначала рассчитайте значения функции!')
         except ValueError:
@@ -315,19 +293,19 @@ class IndirErrorGUI(QtWidgets.QMainWindow):
                     try:
                         if graph_title == '' and y_label == '' and x_label == '':
                             graph_title, ok1 = QtWidgets.QInputDialog.getText(self, 'Название Графика',
-                                                                                  f'Введите название графика')
+                                                                                  'Введите название графика')
                             y_label, ok2 = QtWidgets.QInputDialog.getText(self, 'Ось Oy',
-                                                                              f'Введите название оси ординат')
+                                                                              'Введите название оси ординат')
                             x_label, ok3 = QtWidgets.QInputDialog.getText(self, 'Ось Ox',
-                                                                              f'Введите название оси абсцисс')
+                                                                              'Введите название оси абсцисс')
                     except NameError:
                         graph_title, ok1 = QtWidgets.QInputDialog.getText(self, 'Название Графика',
-                                                                              f'Введите название графика')
+                                                                              'Введите название графика')
                         y_label, ok2 = QtWidgets.QInputDialog.getText(self, 'Ось Oy',
-                                                                          f'Введите название оси ординат')
+                                                                          'Введите название оси ординат')
                         x_label, ok3 = QtWidgets.QInputDialog.getText(self, 'Ось Ox',
-                                                                          f'Введите название оси абсцисс')
-                    plot_func_w_errors(indir_err_vals, 3,
+                                                                          'Введите название оси абсцисс')
+                    plot_func_w_errors(indir_err_vals, 3, math_funcs,
                                            poly_degree=inp_degree_round,
                                            graph_title=graph_title, y_label=y_label, x_label=x_label)
                 else:
@@ -346,14 +324,3 @@ class IndirErrorGUI(QtWidgets.QMainWindow):
         global graph_title, y_label, x_label
         graph_title, y_label, x_label = '', '', ''
         self.ui.listWidget.clear
-
-
-def indir_err_main_exec():
-    app = QtWidgets.QApplication(sys.argv)
-    win = IndirErrorGUI()
-    win.show()
-    app.exec_()
-
-
-if __name__ == '__main__':
-    indir_err_main_exec()
