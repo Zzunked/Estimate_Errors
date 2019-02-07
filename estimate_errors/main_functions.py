@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 import sympy as sy
 from scipy.optimize import curve_fit
 
-from estimate_errors.utils import mathematic_funcs
+from estimate_errors.utils import mathematical_funcs
 
-math_funcs = mathematic_funcs()
+
+math_funcs = mathematical_funcs()
 
 def est_indir_err(inp_func, inp_vals, inp_errors, math_funcs):
     input_str = re.sub("[^A-Za-z0-9\,()*/+=\-]", '', inp_func)
