@@ -182,7 +182,8 @@ class MainGUI(QtWidgets.QMainWindow):
         try:
             path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Открыть файл", '', "(*.txt)")
             file = re.sub(' ', '', open(path).read()).split('\n')
-            if file[-1] == '': file = file[:-1]
+            if file[-1] == '':
+                file = file[:-1]
 
             inp_func = file[0]
             inp_func_vars = inp_func.split('(')[1].split(')')[0]
@@ -279,9 +280,9 @@ class MainGUI(QtWidgets.QMainWindow):
                     inp_degree_round = int(np.round(float(re.sub("[^0-9.]", '', inp_degree)), 0))
                     try:
                         if graph_title == '' and y_label == '' and x_label == '':
-                            graph_title, y_label, x_label = MainGUI.graph_titles()
+                            graph_title, y_label, x_label = MainGUI.graph_titles(self)
                     except NameError:
-                        graph_title, y_label, x_label = MainGUI.graph_titles()
+                        graph_title, y_label, x_label = MainGUI.graph_titles(self)
                     plot_func_w_errors(indir_err_vals, 3, math_funcs,
                                        poly_degree=inp_degree_round,
                                        graph_title=graph_title, y_label=y_label, x_label=x_label)
